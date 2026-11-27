@@ -1,0 +1,45 @@
+name: TITAN Android APK v1.0.1
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'android-source.tar.gz'
+      - '.github/workflows/android.yml'
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify and extract original Android source
+        run: |
+          echo 'ce637466aa3ebb665a3175cbdd82be34456037d594a53c740ecb8c5178b3c4b8  android-source.tar.gz' | sha256sum -c -
+          tar -xzf android-source.tar.gz
+          echo '89e832b553371e11466e584f8a5cce214ab7b47a897a27bf67e77640cbd47d8e  android-app/src/main/java/com/titanquant/ai/MainActivity.kt' | sha256sum -c -
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build and lint Android
+        run: gradle :android-app:assembleDebug :android-app:lintDebug --no-daemon --stacktrace
+      - name: Verify and package signed debug APK
+        run: bash scripts/package-android.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TITAN-QUANT-AI-v1.0.1-debug-installer
+          path: dist/android/TITAN-QUANT-AI-v1.0.1-debug-installer.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-lint-reports
+          path: android-app/build/reports/lint-results-debug.*
+          if-no-files-found: ignore
